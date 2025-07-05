@@ -1,129 +1,214 @@
-# COSINE_AI
+# 🤖 Automatización de Tickets Multi-Agente con Slack y Linear
 
-An AI-powered project designed to accelerate innovation, automate workflows, and unlock new possibilities with cutting-edge artificial intelligence technology. COSINE_AI provides a flexible, extensible platform for building intelligent systems and applications.
+## ¿Qué es este proyecto? 🚀
 
----
-
-## Table of Contents
-
-- [Features](#features)
-- [Getting Started](#getting-started)
-  - [Prerequisites](#prerequisites)
-  - [Installation](#installation)
-- [Usage](#usage)
-- [Contributing](#contributing)
-- [License](#license)
-- [Contact / Maintainers](#contact--maintainers)
-- [Acknowledgements](#acknowledgements)
+Una solución inteligente de automatización de tickets que integra Slack y Linear mediante un sistema multi-agente. Olvídate de gestionar manualmente solicitudes: los agentes colaboran y automatizan la creación, seguimiento y cierre de tickets desde Slack, optimizando la comunicación y ahorrando tiempo.
 
 ---
 
-## Features
+## ✨ Características principales
 
-- AI-powered core for automation, prediction, and data-driven insights
-- Modular architecture for easy customization and extension
-- Support for machine learning model integration and deployment
-- Scalable API for interfacing with other applications and services
-- Command-line interface and/or web dashboard for user interaction
-- Built-in logging, monitoring, and error handling
-- Cross-platform compatibility
+- Integración bidireccional entre Slack y Linear.
+- Orquestador multi-agente: separación de responsabilidades y colaboración entre agentes especializados.
+- Soporte para colas de mensajes (Redis o RabbitMQ) para máxima escalabilidad.
+- Prompts personalizables para ajustar el comportamiento de los agentes.
+- Fácil despliegue local y extensible.
+- Soporte para notificaciones y actualizaciones en tiempo real en Slack.
+- Pruebas automatizadas y guía de contribución.
 
 ---
 
-## Getting Started
+## 🛠️ Arquitectura del sistema
 
-Follow these instructions to set up and run COSINE_AI on your local machine.
+```
++-----------------+           +------------------+           +-------------------+
+|     Usuario     |<--------->|     Slack Bot    |<--------->| OrchestratorAgent |
++-----------------+           +------------------+           +--------+----------+
+                                                                      |
+                                                                      v
+                                                             +--------+----------+
+                                                             |  FrontendAgent    |
+                                                             +-------------------+
+                                                                      |
+                                                                      v
+                                                             +--------+----------+
+                                                             |  BackendAgent     |
+                                                             +-------------------+
+                                                                      |
+                                                                      v
+                                                      +---------------+---------------+
+                                                      |         Colas (Redis/RabbitMQ) |
+                                                      +---------------+---------------+
+                                                                      |
+                                                                      v
+                                                             +--------+----------+
+                                                             |    Linear API     |
+                                                             +-------------------+
+```
 
-### Prerequisites
+**Descripción de agentes y componentes:**
 
-- [Node.js](https://nodejs.org/) (version 18 or higher)
-- [npm](https://www.npmjs.com/) (comes with Node.js)
-- or [Python 3.8+](https://www.python.org/) (if using the Python version)
-- `git` (for cloning the repository)
+- **OrchestratorAgent**: Recibe solicitudes desde Slack, coordina el flujo y delega tareas a los agentes especializados.
+- **FrontendAgent**: Comprende y refina los requerimientos del usuario, interactúa para aclarar detalles.
+- **BackendAgent**: Gestiona la creación, actualización y cierre de tickets directamente en Linear.
+- **Colas (Redis/RabbitMQ)**: Permiten comunicación asíncrona y escalabilidad entre agentes.
+- **Slack**: Punto de contacto principal para los usuarios.
+- **Linear**: Sistema de gestión de tickets y tareas.
 
-### Installation
+---
 
-```bash
-# Clone the repository
-git clone https://github.com/yourusername/COSINE_AI.git
-cd COSINE_AI
+## 📁 Estructura del repositorio
 
-# Node.js environment (if applicable)
-npm install
-
-# Python environment (if applicable)
-python3 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-
-# Copy and edit environment variables if needed
-cp .env.example .env
-# (Edit the .env file as required)
+```
+agents/
+  orchestrator_agent.py
+  frontend_agent.py
+  backend_agent.py
+integrations/
+  slack_client.py
+  linear_client.py
+queues/
+  redis_queue.py
+  rabbitmq_queue.py
+utils/
+  prompts.py
+  config.py
+tests/
+  test_agents.py
+  test_integrations.py
+  test_queues.py
+README.md
+requirements.txt
+.env.example
 ```
 
 ---
 
-## Usage
+## ⚙️ Tecnologías y dependencias clave
 
-To start the project, use one of the following commands depending on your environment:
+- **Python 3.11** 🐍
+- [`slack-sdk`](https://slack.dev/python-slack-sdk/)
+- [`linear-api`](https://developers.linear.app/docs/graphql/getting-started)
+- [`langchain`](https://python.langchain.com/)
+- **Redis** o **RabbitMQ** (según configuración)
+- [`python-dotenv`](https://pypi.org/project/python-dotenv/)
+- [`pytest`](https://docs.pytest.org/)
+- Otros: `requests`, `typing`, `logging`, etc.
 
-<details>
-  <summary><strong>Node.js</strong></summary>
+---
 
-```bash
-npm start
-# or
-node index.js
+## 📋 Requisitos previos
+
+- Python 3.11 instalado.
+- Acceso a [Slack](https://slack.com/) (crear un bot y obtener credenciales).
+- Cuenta en [Linear](https://linear.app/) (obtener API key).
+- Instancia de Redis o RabbitMQ en funcionamiento (local o remota).
+- Git.
+
+---
+
+## 🚦 Instalación y puesta en marcha local
+
+1. **Clona el repositorio**
+   ```bash
+   git clone https://github.com/tu-usuario/tu-repo-ticket-bot.git
+   cd tu-repo-ticket-bot
+   ```
+
+2. **Crea y activa un entorno virtual**
+   ```bash
+   python3.11 -m venv venv
+   source venv/bin/activate
+   ```
+
+3. **Instala las dependencias**
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+4. **Configura las variables de entorno**
+   - Copia el archivo `.env.example` a `.env` y complétalo con tus credenciales.
+
+5. **Inicia los agentes**
+   ```bash
+   python agents/orchestrator_agent.py
+   # En otras terminales puedes iniciar frontend_agent y backend_agent si se despliegan por separado
+   ```
+
+---
+
+## 🔑 Variables de entorno necesarias
+
+Configura un archivo `.env` en la raíz del proyecto con los siguientes valores:
+
 ```
-</details>
-
-<details>
-  <summary><strong>Python</strong></summary>
-
-```bash
-python main.py
-```
-</details>
-
-You can also run tests (if available):
-
-```bash
-npm test
-# or
-pytest
+SLACK_BOT_TOKEN=xoxb-...
+SLACK_SIGNING_SECRET=...
+LINEAR_API_KEY=...
+REDIS_URL=redis://localhost:6379/0
+RABBITMQ_URL=amqp://guest:guest@localhost:5672/
+LANGCHAIN_API_KEY=...
+# Otros valores según integración
 ```
 
 ---
 
-## Contributing
+## ⚡ Guía rápida de uso
 
-We welcome contributions from the community! To contribute:
+1. **Crea un ticket de prueba desde Slack**
+   - Escribe en el canal de tu bot de Slack:  
+     `@TuBot crear ticket: "No puedo acceder al sistema de facturación"`
+2. **Respuesta automática**
+   - El OrchestratorAgent y los agentes colaborarán para crear el ticket en Linear.
+   - Recibirás una notificación en Slack con el número y enlace al ticket creado en Linear.
 
-1. **Fork** the repository
-2. **Create** your feature branch (`git checkout -b feature/YourFeature`)
-3. **Commit** your changes (`git commit -am 'Add new feature'`)
-4. **Push** to your branch (`git push origin feature/YourFeature`)
-5. **Open a Pull Request**
-
-Please follow the [Contributor Covenant](https://www.contributor-covenant.org/) and adhere to best practices.
-
----
-
-## License
-
-This project is licensed under the [MIT License](LICENSE).
+> **Tip:** Puedes personalizar el prompt o la interacción agregando detalles o archivos adjuntos.
 
 ---
 
-## Contact / Maintainers
+## 🗣️ Prompts personalizados
 
-For questions, suggestions, or feedback, please open an [issue](https://github.com/yourusername/COSINE_AI/issues) or contact the maintainers:
+Los prompts y flujos conversacionales se encuentran en `utils/prompts.py`.
 
-- Email: `<your-email@example.com>`
-- GitHub: [yourusername](https://github.com/yourusername)
+- Edita los mensajes, instrucciones y templates para adaptar el comportamiento de los agentes a tu organización.
+- Ejemplo:
+  ```python
+  # utils/prompts.py
+  FRONTEND_AGENT_PROMPT = "Por favor, describe el problema con el mayor detalle posible..."
+  ```
 
 ---
 
-## Acknowledgements
+## 🧪 Cómo correr tests
 
-This project makes use of open-source libraries, frameworks, and the broader AI and developer community. Special thanks to contributors and to the maintainers of foundational tools that inspire and power COSINE_AI.
+1. **Ejecuta todos los tests**
+   ```bash
+   pytest tests/
+   ```
+
+2. **Cobertura y pruebas específicas**
+   ```bash
+   pytest tests/test_agents.py
+   ```
+
+---
+
+## 🤝 Contribución
+
+¡Las contribuciones son bienvenidas!  
+Por favor, abre issues o pull requests siguiendo la estructura del repo y buenas prácticas de Python.
+
+1. Haz fork del repositorio y crea una rama descriptiva.
+2. Agrega o modifica tests para tus cambios.
+3. Asegúrate de pasar todos los tests antes de solicitar merge.
+
+---
+
+## 📄 Licencia
+
+MIT License.  
+Consulta el archivo [LICENSE](LICENSE) para más detalles.
+
+---
+
+¿Dudas o sugerencias? Crea un issue o contacta a los mantenedores.
