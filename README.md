@@ -212,5 +212,3 @@ Consulta el archivo [LICENSE](LICENSE) para más detalles.
 ---
 
 ¿Dudas o sugerencias? Crea un issue o contacta a los mantenedores.
-
----
