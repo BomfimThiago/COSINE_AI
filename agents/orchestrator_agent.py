@@ -3,7 +3,7 @@ from utils.langchain_helpers import get_llm
 from agents.backend_agent import BackendAgent
 from agents.frontend_agent import FrontendAgent
 from langchain_core.prompts import ChatPromptTemplate, SystemMessagePromptTemplate, HumanMessagePromptTemplate
-from langchain.chains.router import LLMRouterChain, RouterOutputParser, MultiPromptChain
+from langchain.chains.router import LLMRouterChain, RouterOutputParser
 import json
 
 class OrchestratorAgent:
@@ -31,15 +31,7 @@ class OrchestratorAgent:
             output_parser=RouterOutputParser()
         )
 
-        # MultiPromptChain for unified workflow
-        self.multi_chain = MultiPromptChain(
-            router_chain=self.router_chain,
-            destination_chains={
-                "backend": self.run_backend,
-                "frontend": self.run_frontend,
-            },
-            default_chain=self.default_handler
-        )
+        
 
     def run_backend(self, ticket_data):
         return self.backend_agent.run(ticket_data)
