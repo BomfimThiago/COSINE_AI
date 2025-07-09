@@ -7,6 +7,6 @@ def get_llm():
     """
     return ChatOpenAI(
         temperature=0,
-        model_name="gpt-3.5-turbo-0125",
+        model_name="gpt-4o-mini",
         openai_api_key=os.environ.get("OPENAI_API_KEY")
     )

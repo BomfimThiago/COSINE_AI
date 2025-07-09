@@ -1,5 +1,5 @@
-from utils.prompts import FRONTEND_AGENT_PROMPT
-from utils.langchain_helpers import get_llm
+from ..utils.prompts import FRONTEND_AGENT_PROMPT
+from ..utils.langchain_helpers import get_llm
 from langchain_core.prompts import ChatPromptTemplate, SystemMessagePromptTemplate, HumanMessagePromptTemplate
 from langchain.chains import LLMChain
 import json
