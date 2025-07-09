@@ -1,5 +1,6 @@
 import requests
 from .linear import get_linear_api_key, get_linear_api_url
+import json
 
 class LinearAPI:
     def __init__(self):
@@ -10,8 +11,8 @@ class LinearAPI:
             "Content-Type": "application/json",
         }
 
-    def create_ticket(self, team_id, title, description, assignee_id=None):
-        print(f"[Linear] Creating ticket: team_id={team_id}, title={title}, assignee_id={assignee_id}")
+    def create_ticket(self, team_id, title, description, assignee_id=None, label_ids=None):
+        print(f"[Linear] Creating ticket: team_id={team_id}, title={title}, assignee_id={assignee_id}, label_ids={label_ids}")
         mutation = """
         mutation IssueCreate($input: IssueCreateInput!) {
           issueCreate(input: $input) {
@@ -22,6 +23,7 @@ class LinearAPI:
               title
               assignee { id name email }
               url
+              labels { nodes { id name } }
             }
           }
         }
@@ -35,7 +37,15 @@ class LinearAPI:
         }
         if assignee_id:
             variables["input"]["assigneeId"] = assignee_id
-        print(f"[Linear] Payload: {{'query': mutation, 'variables': {variables}}}")
+        if label_ids:
+            print(f"[Linear] label_ids type: {type(label_ids)}, value: {label_ids}")
+            if isinstance(label_ids, str):
+                label_ids = [label_ids]
+            elif isinstance(label_ids, list):
+                label_ids = [str(lid) for lid in label_ids]
+            variables["input"]["labelIds"] = label_ids
+        print(f"[Linear] Final variables for mutation: {variables}")
+        print(f"[Linear] Payload: {json.dumps({'query': mutation, 'variables': variables}, indent=2)}")
         response = requests.post(
             self.api_url,
             headers=self.headers,
@@ -105,6 +115,23 @@ class LinearAPI:
             return nodes[0] if nodes else None
         except Exception:
             return None
+
+    def get_labels(self):
+        print(f"[Linear] Fetching all labels")
+        query = """
+        query {
+          issueLabels {
+            nodes {
+              id
+              name
+              color
+            }
+          }
+        }
+        """
+        response = self.__raw_query(query)
+        print(f"[Linear] get_labels response: {response}")
+        return response.get("data", {}).get("issueLabels", {}).get("nodes", [])
 
     def __raw_query(self, query, variables=None):
         print(f"[Linear] __raw_query: query={query}, variables={variables}")

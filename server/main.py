@@ -1,7 +1,7 @@
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, List
 from .agents.orchestrator_agent import OrchestratorAgent
 from .utils.linear_api import LinearAPI
 
@@ -21,10 +21,12 @@ class TicketRequest(BaseModel):
     assignee_email: Optional[str] = None
     titulo: Optional[str] = None
     id: Optional[str] = None
+    labelIds: Optional[List[str]] = None
 
 @app.post("/create_ticket")
 def create_ticket(ticket: TicketRequest):
     try:
+        print(f"[main.py] Received ticket data: {ticket.dict()}")
         agent = OrchestratorAgent()
         result = agent.run(ticket.dict())
         return result
@@ -85,3 +87,8 @@ def get_linear_team_members(team_key: str = Query(...)):
     """
     members_response = api._LinearAPI__raw_query(query_members)
     return members_response.get("data", {}).get("team", {}).get("members", {}).get("nodes", [])
+
+@app.get("/linear/labels")
+def get_linear_labels():
+    api = LinearAPI()
+    return api.get_labels()

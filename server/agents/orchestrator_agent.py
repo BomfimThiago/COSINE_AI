@@ -21,13 +21,26 @@ class OrchestratorAgent:
         assignee = linear_api.get_user_id_by_email(assignee_email) if assignee_email else None
         assignee_id = assignee["id"] if assignee else None
 
+        label_ids = ticket_data.get("labelIds") or ticket_data.get("label_ids")
+        # Ensure label_ids is a list of strings or None
+        if label_ids:
+            if isinstance(label_ids, str):
+                label_ids = [label_ids]
+            elif isinstance(label_ids, list):
+                label_ids = [str(lid) for lid in label_ids if lid]
+            else:
+                label_ids = None
+        print(f"[OrchestratorAgent] Received label_ids: {label_ids}")
+
+        # Always pass label_ids, even if empty
         linear_ticket = None
         if team_id:
             linear_ticket = linear_api.create_ticket(
                 team_id=team_id,
                 title=ticket_data.get("titulo", "Ticket sin título"),
                 description=ticket_data.get("descripcion", ""),
-                assignee_id=assignee_id
+                assignee_id=assignee_id,
+                label_ids=label_ids if label_ids is not None else []
             )
         return {
             "ticket_id": ticket_id,

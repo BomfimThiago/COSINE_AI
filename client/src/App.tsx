@@ -12,6 +12,12 @@ interface Member {
   email: string;
 }
 
+interface Label {
+  id: string;
+  name: string;
+  color: string;
+}
+
 interface TicketResponse {
   ticket_id?: string;
   linear_ticket?: any;
@@ -25,8 +31,10 @@ const API_BASE = "http://localhost:8000";
 function App() {
   const [teams, setTeams] = useState<Team[]>([]);
   const [members, setMembers] = useState<Member[]>([]);
+  const [labels, setLabels] = useState<Label[]>([]);
   const [selectedTeam, setSelectedTeam] = useState<string>("");
   const [selectedMember, setSelectedMember] = useState<string>("");
+  const [selectedLabels, setSelectedLabels] = useState<string[]>([]);
   const [titulo, setTitulo] = useState("");
   const [descripcion, setDescripcion] = useState("");
   const [result, setResult] = useState<TicketResponse | null>(null);
@@ -38,6 +46,10 @@ function App() {
       .then(res => res.json())
       .then(setTeams)
       .catch(() => setError("Failed to load teams"));
+    fetch(`${API_BASE}/linear/labels`)
+      .then(res => res.json())
+      .then(setLabels)
+      .catch(() => setError("Failed to load labels"));
   }, []);
 
   useEffect(() => {
@@ -51,6 +63,11 @@ function App() {
       setSelectedMember("");
     }
   }, [selectedTeam]);
+
+  const handleLabelChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const options = Array.from(e.target.selectedOptions);
+    setSelectedLabels(options.map(opt => opt.value));
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -66,6 +83,7 @@ function App() {
           descripcion,
           team_key: selectedTeam,
           assignee_email: members.find(m => m.id === selectedMember)?.email,
+          labelIds: selectedLabels,
         }),
       });
       const data = await res.json();
@@ -100,6 +118,20 @@ function App() {
               ))}
             </select>
           </label>
+        </div>
+        <div style={{ marginBottom: 12 }}>
+          <label>Labels:<br />
+            <select multiple value={selectedLabels} onChange={handleLabelChange} style={{ width: '100%', height: 80 }}>
+              {labels.map(label => (
+                <option key={label.id} value={label.id}>{label.name}</option>
+              ))}
+            </select>
+          </label>
+          <div style={{ marginTop: 4, fontSize: 12 }}>
+            {selectedLabels.length > 0 && (
+              <span>Selected: {labels.filter(l => selectedLabels.includes(l.id)).map(l => l.name).join(', ')}</span>
+            )}
+          </div>
         </div>
         <div style={{ marginBottom: 12 }}>
           <label>Title:<br />
