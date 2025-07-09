@@ -104,4 +104,20 @@ class LinearAPI:
             nodes = data["data"]["users"]["nodes"]
             return nodes[0] if nodes else None
         except Exception:
-            return None 
+            return None
+
+    def __raw_query(self, query, variables=None):
+        print(f"[Linear] __raw_query: query={query}, variables={variables}")
+        payload = {"query": query}
+        if variables:
+            payload["variables"] = variables
+        response = requests.post(
+            self.api_url,
+            headers=self.headers,
+            json=payload,
+        )
+        print(f"[Linear] __raw_query response: {response.text[:500]}")
+        try:
+            return response.json()
+        except Exception:
+            return {"error": response.text} 
