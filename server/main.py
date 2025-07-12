@@ -4,6 +4,7 @@ from pydantic import BaseModel
 from typing import Optional, List
 from .agents.orchestrator_agent import OrchestratorAgent
 from .utils.linear_api import LinearAPI
+from .services.ticket_generator import TicketGenerator
 
 app = FastAPI()
 
@@ -23,6 +24,9 @@ class TicketRequest(BaseModel):
     id: Optional[str] = None
     labelIds: Optional[List[str]] = None
 
+class IdeaRequest(BaseModel):
+    idea: str
+
 @app.post("/create_ticket")
 def create_ticket(ticket: TicketRequest):
     try:
@@ -30,6 +34,14 @@ def create_ticket(ticket: TicketRequest):
         agent = OrchestratorAgent()
         result = agent.run(ticket.dict())
         return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/project/idea")
+def project_idea(request: IdeaRequest):
+    try:
+        tickets = TicketGenerator().generate_tickets(request.idea)
+        return {"tickets": tickets}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
