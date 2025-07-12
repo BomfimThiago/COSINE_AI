@@ -1,178 +1,190 @@
 import React, { useState, useRef, useEffect } from "react";
 
-const API_BASE = "http://localhost:8000";
+// Simple styling for the chat interface
+const styles = {
+  container: {
+    display: "flex",
+    flexDirection: "column" as const,
+    justifyContent: "center",
+    alignItems: "center",
+    minHeight: "100vh",
+    background: "#f6f8fa",
+    fontFamily: "Inter, sans-serif",
+  },
+  chatBox: {
+    background: "#fff",
+    borderRadius: "16px",
+    boxShadow: "0 4px 24px rgba(60, 91, 158, 0.1)",
+    width: "100%",
+    maxWidth: "500px",
+    minHeight: "480px",
+    display: "flex",
+    flexDirection: "column" as const,
+    padding: "24px 18px 16px 18px",
+    gap: "16px",
+  },
+  messages: {
+    flex: 1,
+    overflowY: "auto" as const,
+    paddingBottom: "12px",
+    display: "flex",
+    flexDirection: "column" as const,
+    gap: "12px",
+  },
+  inputRow: {
+    display: "flex",
+    gap: "10px",
+    alignItems: "center",
+    marginTop: "8px",
+  },
+  input: {
+    flex: 1,
+    padding: "12px 16px",
+    borderRadius: "8px",
+    border: "1px solid #e1e4e8",
+    fontSize: "1rem",
+    outline: "none",
+  },
+  button: {
+    background: "linear-gradient(90deg, #2a62f7, #81e0fa)",
+    color: "#fff",
+    border: "none",
+    borderRadius: "8px",
+    padding: "10px 18px",
+    fontWeight: 600,
+    fontSize: "1rem",
+    cursor: "pointer",
+    transition: "background 0.2s",
+  },
+  userMsg: {
+    alignSelf: "flex-end",
+    background: "#2a62f7",
+    color: "#fff",
+    borderRadius: "12px 12px 4px 12px",
+    padding: "12px 18px",
+    maxWidth: "75%",
+    fontSize: "1rem",
+    boxShadow: "0 2px 8px rgba(60,91,158,0.08)",
+  },
+  agentMsg: {
+    alignSelf: "flex-start",
+    background: "#f1f4fb",
+    color: "#222",
+    borderRadius: "12px 12px 12px 4px",
+    padding: "12px 18px",
+    maxWidth: "75%",
+    fontSize: "1rem",
+    boxShadow: "0 2px 8px rgba(60,91,158,0.05)",
+    borderLeft: "4px solid #2a62f7",
+  },
+  header: {
+    textAlign: "center" as const,
+    marginBottom: "12px",
+    fontWeight: 700,
+    fontSize: "1.45rem",
+    color: "#2a62f7",
+    letterSpacing: "0.5px",
+  },
+  subheader: {
+    textAlign: "center" as const,
+    marginBottom: "16px",
+    color: "#777",
+    fontSize: "1rem",
+    fontWeight: 400,
+  }
+};
 
 type Message = {
-  sender: "user" | "system";
+  sender: "user" | "agent";
   text: string;
 };
 
-type TicketResult = {
-  tickets: {
-    description: string;
-    label: string;
-    assignee: string;
-    solution: string;
-    linear_ticket: any;
-  }[];
+const initialMsg: Message = {
+  sender: "agent",
+  text: "¡Hola! Cuéntame en lenguaje natural la idea general de tu proyecto (por ejemplo: 'Quiero una app con login y visualización de métricas') y te ayudaré a crear los tickets de trabajo.",
 };
 
-function App() {
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      sender: "system",
-      text: "¡Hola! Describe en lenguaje natural tu idea de proyecto o tarea, y crearé los tickets automáticamente.",
-    },
-  ]);
+export default function App() {
+  const [messages, setMessages] = useState<Message[]>([initialMsg]);
   const [input, setInput] = useState("");
-  const [loading, setLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
+  // Auto-scroll to bottom when messages update
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  const handleSend = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const userMsg = input.trim();
-    if (!userMsg) return;
+  const handleSend = async () => {
+    const trimmed = input.trim();
+    if (!trimmed) return;
 
-    setMessages((msgs) => [...msgs, { sender: "user", text: userMsg }]);
+    // Add user message
+    setMessages((msgs) => [
+      ...msgs,
+      { sender: "user", text: trimmed },
+    ]);
     setInput("");
-    setLoading(true);
 
-    try {
-      const res = await fetch(`${API_BASE}/chat_orchestrate`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: userMsg }),
-      });
-      const data: TicketResult = await res.json();
-
-      if (data && data.tickets && data.tickets.length > 0) {
-        data.tickets.forEach((ticket, idx) => {
-          setMessages((msgs) => [
-            ...msgs,
-            {
-              sender: "system",
-              text:
-                `🎟️ Ticket #${idx + 1}:\n` +
-                `Descripción: ${ticket.description}\n` +
-                `Label: ${ticket.label}\n` +
-                `Asignado a: ${ticket.assignee}\n` +
-                `Solución Inicial:\n${ticket.solution}` +
-                (ticket.linear_ticket
-                  ? `\n\nTicket creado en Linear: ${ticket.linear_ticket.identifier || ticket.linear_ticket.id}`
-                  : ""),
-            },
-          ]);
-        });
-      } else {
-        setMessages((msgs) => [
-          ...msgs,
-          { sender: "system", text: "No se pudieron generar tickets desde tu mensaje." },
-        ]);
-      }
-    } catch (err) {
+    // Simulate agent/orchestrator response (to be replaced with backend call)
+    setTimeout(() => {
       setMessages((msgs) => [
         ...msgs,
-        { sender: "system", text: "Ocurrió un error al procesar tu solicitud." },
+        {
+          sender: "agent",
+          text:
+            "Procesando tu idea... (Aquí pronto verás cómo se desglosa en tickets con etiquetas y asignaciones automáticas).",
+        },
       ]);
-    } finally {
-      setLoading(false);
+    }, 1100);
+  };
+
+  const handleInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
     }
   };
 
   return (
-    <div
-      style={{
-        maxWidth: 600,
-        margin: "2rem auto",
-        background: "#fff",
-        borderRadius: 12,
-        boxShadow: "0 2px 16px #0001",
-        padding: 24,
-        minHeight: 500,
-        display: "flex",
-        flexDirection: "column",
-      }}
-    >
-      <h2 style={{ marginBottom: 16, textAlign: "center" }}>
-        🤖 Chat Orquestador de Tickets Linear
-      </h2>
-      <div
-        style={{
-          flex: 1,
-          overflowY: "auto",
-          background: "#f7f7fa",
-          borderRadius: 8,
-          padding: 16,
-          marginBottom: 12,
-          minHeight: 320,
-        }}
-      >
-        {messages.map((msg, i) => (
-          <div
-            key={i}
-            style={{
-              textAlign: msg.sender === "user" ? "right" : "left",
-              marginBottom: 12,
-              whiteSpace: "pre-wrap",
-            }}
-          >
-            <span
-              style={{
-                display: "inline-block",
-                padding: "10px 16px",
-                borderRadius: 16,
-                background: msg.sender === "user" ? "#e0e7ff" : "#f1f5f9",
-                color: "#20223a",
-                maxWidth: "80%",
-              }}
+    <div style={styles.container}>
+      <div style={styles.chatBox}>
+        <div style={styles.header}>Cosine Genie · Conversational Ticketing</div>
+        <div style={styles.subheader}>
+          Transforma tus ideas en tickets de trabajo automáticamente.
+        </div>
+        <div style={styles.messages}>
+          {messages.map((msg, i) => (
+            <div
+              key={i}
+              style={msg.sender === "user" ? styles.userMsg : styles.agentMsg}
             >
               {msg.text}
-            </span>
-          </div>
-        ))}
-        <div ref={messagesEndRef} />
-      </div>
-      <form onSubmit={handleSend} style={{ display: "flex", gap: 8 }}>
-        <input
-          type="text"
-          placeholder="Describe tu idea aquí..."
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          style={{
-            flex: 1,
-            padding: 12,
-            borderRadius: 8,
-            border: "1px solid #ccc",
-            fontSize: 16,
-          }}
-          disabled={loading}
-        />
-        <button
-          type="submit"
-          disabled={loading || !input.trim()}
-          style={{
-            background: "#6366f1",
-            color: "#fff",
-            border: "none",
-            borderRadius: 8,
-            padding: "0 18px",
-            fontWeight: 600,
-            fontSize: 16,
-            cursor: loading ? "not-allowed" : "pointer",
-          }}
-        >
-          {loading ? "..." : "Enviar"}
-        </button>
-      </form>
-      <div style={{ fontSize: 12, color: "#999", marginTop: 8, textAlign: "center" }}>
-        Escribe una idea como: "Quiero una app con login y visualización de métricas"
+            </div>
+          ))}
+          <div ref={messagesEndRef} />
+        </div>
+        <div style={styles.inputRow}>
+          <input
+            type="text"
+            style={styles.input}
+            placeholder="Escribe tu idea de proyecto..."
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={handleInputKeyDown}
+            autoFocus
+            maxLength={400}
+            aria-label="Escribe tu mensaje"
+          />
+          <button
+            style={styles.button}
+            onClick={handleSend}
+            disabled={!input.trim()}
+            aria-label="Enviar mensaje"
+          >
+            Enviar
+          </button>
+        </div>
       </div>
     </div>
   );
 }
-
-export default App;
