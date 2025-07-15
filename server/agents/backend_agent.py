@@ -5,6 +5,8 @@ from ..utils.langchain_helpers import get_llm
 from ..utils.ticket_loader import TicketLoader
 from ..utils import clarity_checker
 from ..utils.linear_api import LinearAPI
+from ..utils.code_generator_service import CodeGeneratorService
+from ..utils.github_service import GitHubService
 
 from langchain_core.prompts import (
     ChatPromptTemplate,
@@ -110,3 +112,36 @@ class BackendAgent:
                 return {"codigo": "", "comentario": "", "raw_output": output}
         except Exception:
             return {"codigo": "", "comentario": "", "raw_output": output if 'output' in locals() else "ERROR"}
+
+    def process_ticket_claro(self, ticket_id: str, ticket_slug: str, ticket_data: dict) -> dict:
+        """
+        Ejecuta el flujo 4.4 Ruta B: ticket CLARO
+        """
+        # a. Generar nombre de la rama: feature/<ticketId>-slug
+        branch_name = f"feature/{ticket_id}-{ticket_slug}"
+
+        # b. Invocar CodeGeneratorService (placeholder)
+        codegen_result = CodeGeneratorService.generate_code(ticket_id, ticket_slug, ticket_data)
+        files = codegen_result.get("files", [])
+        comment = codegen_result.get("comment", "")
+
+        # c. GitHubService.createBranch, commit & push cambios.
+        GitHubService.create_branch(branch_name)
+        GitHubService.commit_and_push(branch_name, files)
+
+        # d. GitHubService.createPullRequest → prUrl.
+        pr_title = f"Feature {ticket_id}: {ticket_slug}"
+        pr_body = comment
+        pr_url = GitHubService.create_pull_request(branch_name, pr_title, pr_body)
+
+        # e. LinearService.updateTicketStatus(ticketId, "En revisión")
+        linear_api = LinearAPI()
+        linear_api.update_ticket_status(ticket_id, "En revisión")
+
+        # f. Devolver respuesta interna
+        return {
+            "ticket_id": ticket_id,
+            "accion": "pull_request",
+            "mensaje": "PR creado",
+            "github_pr_url": pr_url
+        }
