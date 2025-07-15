@@ -4,6 +4,7 @@ import requests
 from .linear import get_linear_api_key, get_linear_api_url
 import json
 from typing import Any
+from .logging_utils import network_guard, log_error
 
 class LinearAPI:
     def __init__(self):
@@ -13,6 +14,10 @@ class LinearAPI:
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
         }
+    
+    @network_guard(max_retries=3, backoff_factor=0.75)
+    def _safe_post(self, *args, **kwargs):
+        return requests.post(*args, **kwargs)
 
     def add_comment(self, ticket_id: str, body: str) -> dict:
         """
@@ -38,16 +43,21 @@ class LinearAPI:
                 "body": body
             }
         }
-        response = requests.post(
-            self.api_url,
-            headers=self.headers,
-            json={"query": mutation, "variables": variables},
-        )
-        print(f"[Linear] add_comment response: {response.text[:500]}")
         try:
+            response = self._safe_post(
+                self.api_url,
+                headers=self.headers,
+                json={"query": mutation, "variables": variables},
+            )
+            print(f"[Linear] add_comment response: {response.text[:500]}")
             return response.json().get("data", {}).get("commentCreate", {})
-        except Exception:
-            return {"success": False, "error": response.text}
+        except Exception as e:
+            log_error(
+                f"Failed to add comment to Linear ticket {ticket_id}: {e}",
+                extra={"ticket_id": ticket_id, "body": body[:100]},
+                alert=True
+            )
+            return {"success": False, "error": str(e)}
 
     def create_ticket(self, team_id, title, description, assignee_id=None, label_ids=None):
         print(f"[Linear] Creating ticket: team_id={team_id}, title={title}, assignee_id={assignee_id}, label_ids={label_ids}")
@@ -84,17 +94,22 @@ class LinearAPI:
             variables["input"]["labelIds"] = label_ids
         print(f"[Linear] Final variables for mutation: {variables}")
         print(f"[Linear] Payload: {json.dumps({'query': mutation, 'variables': variables}, indent=2)}")
-        response = requests.post(
-            self.api_url,
-            headers=self.headers,
-            json={"query": mutation, "variables": variables},
-        )
-        print(f"[Linear] Response: {response.text[:500]}")
         try:
+            response = self._safe_post(
+                self.api_url,
+                headers=self.headers,
+                json={"query": mutation, "variables": variables},
+            )
+            print(f"[Linear] Response: {response.text[:500]}")
             data = response.json()
             return data["data"]["issueCreate"]
-        except Exception:
-            return {"success": False, "error": response.text}
+        except Exception as e:
+            log_error(
+                f"Failed to create Linear ticket: {e}",
+                extra={"team_id": team_id, "title": title, "assignee_id": assignee_id, "label_ids": label_ids},
+                alert=True
+            )
+            return {"success": False, "error": str(e)}
 
     def get_team_id_by_key(self, team_key):
         print(f"[Linear] Looking up team by key: {team_key}")
@@ -110,20 +125,25 @@ class LinearAPI:
         }
         """
         print(f"[Linear] Payload: {{'query': query}}")
-        response = requests.post(
-            self.api_url,
-            headers=self.headers,
-            json={"query": query},
-        )
-        print(f"[Linear] Response: {response.text[:500]}")
         try:
+            response = self._safe_post(
+                self.api_url,
+                headers=self.headers,
+                json={"query": query},
+            )
+            print(f"[Linear] Response: {response.text[:500]}")
             data = response.json()
             teams = data["data"]["teams"]["nodes"]
             for team in teams:
                 if team["key"] == team_key:
                     return team
             return None
-        except Exception:
+        except Exception as e:
+            log_error(
+                f"Failed to get Linear team by key: {e}",
+                extra={"team_key": team_key},
+                alert=True
+            )
             return None
 
     def get_user_id_by_email(self, email):
@@ -141,17 +161,22 @@ class LinearAPI:
         """
         variables = {"email": email}
         print(f"[Linear] Payload: {{'query': query, 'variables': {variables}}}")
-        response = requests.post(
-            self.api_url,
-            headers=self.headers,
-            json={"query": query, "variables": variables},
-        )
-        print(f"[Linear] Response: {response.text[:500]}")
         try:
+            response = self._safe_post(
+                self.api_url,
+                headers=self.headers,
+                json={"query": query, "variables": variables},
+            )
+            print(f"[Linear] Response: {response.text[:500]}")
             data = response.json()
             nodes = data["data"]["users"]["nodes"]
             return nodes[0] if nodes else None
-        except Exception:
+        except Exception as e:
+            log_error(
+                f"Failed to get Linear user by email: {e}",
+                extra={"email": email},
+                alert=True
+            )
             return None
 
     def get_team_members(self, team_id):
@@ -172,9 +197,17 @@ class LinearAPI:
             }
         }
         """
-        response = self.__raw_query(query, {"id": team_id})
-        print(f"[Linear] get_team_members response: {response}")
-        return response.get("data", {}).get("team", {}).get("members", {}).get("nodes", [])
+        try:
+            response = self.__raw_query(query, {"id": team_id})
+            print(f"[Linear] get_team_members response: {response}")
+            return response.get("data", {}).get("team", {}).get("members", {}).get("nodes", [])
+        except Exception as e:
+            log_error(
+                f"Failed to fetch Linear team members: {e}",
+                extra={"team_id": team_id},
+                alert=True
+            )
+            return []
 
     def get_labels(self):
         print(f"[Linear] Fetching all labels")
@@ -189,9 +222,16 @@ class LinearAPI:
           }
         }
         """
-        response = self.__raw_query(query)
-        print(f"[Linear] get_labels response: {response}")
-        return response.get("data", {}).get("issueLabels", {}).get("nodes", [])
+        try:
+            response = self.__raw_query(query)
+            print(f"[Linear] get_labels response: {response}")
+            return response.get("data", {}).get("issueLabels", {}).get("nodes", [])
+        except Exception as e:
+            log_error(
+                f"Failed to fetch Linear labels: {e}",
+                alert=True
+            )
+            return []
 
     def get_ticket(self, ticket_id: str) -> dict | None:
         """
@@ -219,11 +259,16 @@ class LinearAPI:
         }
         """
         variables = {"id": ticket_id}
-        response = self.__raw_query(query, variables)
-        print(f"[Linear] get_ticket response: {response}")
         try:
+            response = self.__raw_query(query, variables)
+            print(f"[Linear] get_ticket response: {response}")
             return response.get("data", {}).get("issue", None)
-        except Exception:
+        except Exception as e:
+            log_error(
+                f"Failed to fetch Linear ticket: {e}",
+                extra={"ticket_id": ticket_id},
+                alert=True
+            )
             return None
 
     def __raw_query(self, query, variables=None):
@@ -231,13 +276,18 @@ class LinearAPI:
         payload = {"query": query}
         if variables:
             payload["variables"] = variables
-        response = requests.post(
-            self.api_url,
-            headers=self.headers,
-            json=payload,
-        )
-        print(f"[Linear] __raw_query response: {response.text[:500]}")
         try:
+            response = self._safe_post(
+                self.api_url,
+                headers=self.headers,
+                json=payload,
+            )
+            print(f"[Linear] __raw_query response: {response.text[:500]}")
             return response.json()
-        except Exception:
-            return {"error": response.text} 
+        except Exception as e:
+            log_error(
+                f"Failed raw_query to Linear: {e}",
+                extra={"query": query, "variables": variables},
+                alert=True
+            )
+            return {"error": str(e)} 
