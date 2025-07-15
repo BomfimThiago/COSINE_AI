@@ -1,5 +1,22 @@
 import React, { useState, useRef, useEffect } from "react";
 
+// Backend API base URL
+const API_BASE = process.env.REACT_APP_API_URL || "http://localhost:8000";
+
+interface Ticket {
+  local_ticket: {
+    titulo: string;
+    descripcion: string;
+    label: string;
+    [key: string]: any;
+  };
+  [key: string]: any;
+}
+
+interface ProjectIdeaResponse {
+  results: Ticket[];
+}
+
 // Simple styling for the chat interface
 const styles = {
   container: {
@@ -125,17 +142,59 @@ export default function App() {
     ]);
     setInput("");
 
-    // Simulate agent/orchestrator response (to be replaced with backend call)
-    setTimeout(() => {
+    // Show placeholder agent message while waiting for backend
+    const placeholderMsg = {
+      sender: "agent" as const,
+      text: "Generando tickets…",
+    };
+    setMessages((msgs) => [...msgs, placeholderMsg]);
+
+    try {
+      const resp = await fetch(`${API_BASE}/api/project/idea`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ idea: trimmed }),
+      });
+
+      if (!resp.ok) {
+        const errorText = await resp.text();
+        throw new Error(errorText || resp.statusText);
+      }
+      const data: ProjectIdeaResponse = await resp.json();
+      if (!Array.isArray(data.results)) {
+        throw new Error("Respuesta inválida del servidor");
+      }
+
+      // Format the tickets as agent message
+      const formatted = data.results
+        .map((item) => {
+          const lt = item.local_ticket || {};
+          return `• ${lt.titulo} (label: ${lt.label}) – ${lt.descripcion}`;
+        })
+        .join("\n");
+
       setMessages((msgs) => [
-        ...msgs,
+        // Remove the last placeholder agent message before appending result
+        ...msgs.slice(0, -1),
+        {
+          sender: "agent",
+          text: formatted || "No se generaron tickets.",
+        },
+      ]);
+    } catch (err: any) {
+      setMessages((msgs) => [
+        // Remove the last placeholder agent message before appending error
+        ...msgs.slice(0, -1),
         {
           sender: "agent",
           text:
-            "Procesando tu idea... (Aquí pronto verás cómo se desglosa en tickets con etiquetas y asignaciones automáticas).",
+            "Lo siento, ocurrió un error: " +
+            (err?.message || String(err)),
         },
       ]);
-    }, 1100);
+    }
   };
 
   const handleInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {

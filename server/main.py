@@ -40,7 +40,12 @@ def create_ticket(ticket: TicketRequest):
 @app.post("/api/project/idea")
 def project_idea(request: IdeaRequest):
     try:
+        print(f"[project_idea] idea='{request.idea[:80]}...' team_key={request.team_key}")
         results = OrchestratorAgent().process_project(request.idea, request.team_key)
+        print(f"[project_idea] generated {len(results)} tickets")
+        for t in results:
+            lt = t.get('local_ticket', {})
+            print(f"   - {lt.get('titulo')} [{lt.get('label')}]")
         return {"results": results}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
