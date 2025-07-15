@@ -14,6 +14,41 @@ class LinearAPI:
             "Content-Type": "application/json",
         }
 
+    def add_comment(self, ticket_id: str, body: str) -> dict:
+        """
+        Adds a comment to the specified Linear ticket (issue).
+        Returns the API response dict.
+        """
+        print(f"[Linear] Adding comment to ticket {ticket_id}: {body[:120]}...")
+        mutation = """
+        mutation IssueCommentCreate($input: CommentCreateInput!) {
+          commentCreate(input: $input) {
+            success
+            comment {
+              id
+              body
+              createdAt
+            }
+          }
+        }
+        """
+        variables = {
+            "input": {
+                "issueId": ticket_id,
+                "body": body
+            }
+        }
+        response = requests.post(
+            self.api_url,
+            headers=self.headers,
+            json={"query": mutation, "variables": variables},
+        )
+        print(f"[Linear] add_comment response: {response.text[:500]}")
+        try:
+            return response.json().get("data", {}).get("commentCreate", {})
+        except Exception:
+            return {"success": False, "error": response.text}
+
     def create_ticket(self, team_id, title, description, assignee_id=None, label_ids=None):
         print(f"[Linear] Creating ticket: team_id={team_id}, title={title}, assignee_id={assignee_id}, label_ids={label_ids}")
         mutation = """
