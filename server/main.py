@@ -40,12 +40,21 @@ def create_ticket(ticket: TicketRequest):
 @app.post("/api/project/idea")
 def project_idea(request: IdeaRequest):
     try:
-        print(f"[project_idea] idea='{request.idea[:80]}...' team_key={request.team_key}")
-        results = OrchestratorAgent().process_project(request.idea, request.team_key)
+        # Use a default team key if the frontend doesn't provide one.
+        # This ensures that tickets can always be created in Linear.
+        team_key_to_use = request.team_key or "CHA"
+        print(f"[project_idea] idea='{request.idea[:80]}...' team_key='{team_key_to_use}'")
+
+        agent = OrchestratorAgent()
+        results = agent.process_project(request.idea, team_key_to_use)
+
         print(f"[project_idea] generated {len(results)} tickets")
         for t in results:
             lt = t.get('local_ticket', {})
-            print(f"   - {lt.get('titulo')} [{lt.get('label')}]")
+            lnt = t.get('linear_ticket')
+            status = f"✅ Created ({lnt.get('identifier')})" if (lnt and lnt.get('success')) else "❌ Failed"
+            print(f"   - {lt.get('titulo')} [{lt.get('label')}] - {status}")
+
         return {"results": results}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

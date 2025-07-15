@@ -116,6 +116,28 @@ class LinearAPI:
         except Exception:
             return None
 
+    def get_team_members(self, team_id):
+        """
+        Fetches all members for a given team ID.
+        """
+        print(f"[Linear] Fetching members for team_id='{team_id}'")
+        query = """
+        query TeamMembers($id: String!) {
+            team(id: $id) {
+                members {
+                    nodes {
+                        id
+                        name
+                        email
+                    }
+                }
+            }
+        }
+        """
+        response = self.__raw_query(query, {"id": team_id})
+        print(f"[Linear] get_team_members response: {response}")
+        return response.get("data", {}).get("team", {}).get("members", {}).get("nodes", [])
+
     def get_labels(self):
         print(f"[Linear] Fetching all labels")
         query = """

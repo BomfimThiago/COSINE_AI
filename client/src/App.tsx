@@ -93,6 +93,7 @@ const styles = {
     fontSize: "1rem",
     boxShadow: "0 2px 8px rgba(60,91,158,0.05)",
     borderLeft: "4px solid #2a62f7",
+    whiteSpace: "pre-wrap" as const,
   },
   header: {
     textAlign: "center" as const,

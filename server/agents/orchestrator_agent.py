@@ -39,8 +39,11 @@ class OrchestratorAgent:
         llm = get_llm()
         prompt = IDEA_TO_TICKETS_PROMPT.strip() + f"\n\nIDEA:\n{idea.strip()}"
         for attempt in range(max_attempts):
-            response = llm.invoke(prompt)
-            tickets = self.try_json_loads(response)
+            response_message = llm.invoke(prompt)
+            # The response from llm.invoke is an AIMessage object. We need its string content.
+            response_content = response_message.content if hasattr(response_message, 'content') else str(response_message)
+            
+            tickets = self.try_json_loads(response_content)
             if tickets and isinstance(tickets, list):
                 # Validate ticket objects
                 valid = all(isinstance(t, dict) and {"titulo", "descripcion", "label"} <= set(t.keys()) for t in tickets)
@@ -75,6 +78,7 @@ class OrchestratorAgent:
         # Always pass label_ids, even if empty
         linear_ticket = None
         if team_id:
+            print(f"[OrchestratorAgent.run] Team ID '{team_id}' found for team_key '{team_key}'. Proceeding to create Linear ticket.")
             linear_ticket = linear_api.create_ticket(
                 team_id=team_id,
                 title=ticket_data.get("titulo", "Ticket sin título"),
@@ -82,6 +86,9 @@ class OrchestratorAgent:
                 assignee_id=assignee_id,
                 label_ids=label_ids if label_ids is not None else []
             )
+        else:
+            print(f"[OrchestratorAgent.run] SKIPPING Linear ticket creation because no Team ID was found for team_key '{team_key}'.")
+        
         return {
             "ticket_id": ticket_id,
             "linear_ticket": linear_ticket,
