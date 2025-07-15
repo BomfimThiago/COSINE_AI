@@ -1,6 +1,9 @@
+from __future__ import annotations
+
 import requests
 from .linear import get_linear_api_key, get_linear_api_url
 import json
+from typing import Any
 
 class LinearAPI:
     def __init__(self):
@@ -154,6 +157,39 @@ class LinearAPI:
         response = self.__raw_query(query)
         print(f"[Linear] get_labels response: {response}")
         return response.get("data", {}).get("issueLabels", {}).get("nodes", [])
+
+    def get_ticket(self, ticket_id: str) -> dict | None:
+        """
+        Fetches a single ticket (issue) by its Linear ID.
+        Returns the issue data dict, or None if not found/error.
+        """
+        print(f"[Linear] Fetching ticket by id: {ticket_id}")
+        query = """
+        query IssueById($id: String!) {
+          issue(id: $id) {
+            id
+            identifier
+            title
+            description
+            url
+            labels { nodes { id name } }
+            assignee { id name email }
+            state { id name type }
+            team { id name key }
+            createdAt
+            updatedAt
+            priority
+            comments { nodes { id body createdAt } }
+          }
+        }
+        """
+        variables = {"id": ticket_id}
+        response = self.__raw_query(query, variables)
+        print(f"[Linear] get_ticket response: {response}")
+        try:
+            return response.get("data", {}).get("issue", None)
+        except Exception:
+            return None
 
     def __raw_query(self, query, variables=None):
         print(f"[Linear] __raw_query: query={query}, variables={variables}")
