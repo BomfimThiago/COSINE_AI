@@ -1,13 +1,53 @@
-from ..utils.prompts import ORCHESTRATOR_AGENT_PROMPT
+from ..utils.prompts import ORCHESTRATOR_AGENT_PROMPT, IDEA_TO_TICKETS_PROMPT
 from ..utils.langchain_helpers import get_llm
 import json
 from ..utils.linear_api import LinearAPI
+from .frontend_agent import FrontendAgent
+from .backend_agent import BackendAgent
 
 class OrchestratorAgent:
     prompt = ORCHESTRATOR_AGENT_PROMPT
 
     def __init__(self):
         pass
+
+    def _extract_json(self, text):
+        """Extract the first JSON object/array from the text."""
+        import re
+        # Allow both array and object
+        match = re.search(r'(\[.*?\]|\{.*?\})', text, re.DOTALL)
+        if match:
+            json_str = match.group(1)
+            return json_str
+        return None
+
+    def try_json_loads(self, text, max_attempts=2):
+        """Try to extract and parse JSON, fallback to extract_json if fails."""
+        for i in range(max_attempts):
+            try:
+                return json.loads(text)
+            except Exception:
+                extracted = self._extract_json(text)
+                if extracted:
+                    try:
+                        return json.loads(extracted)
+                    except Exception:
+                        pass
+        return None
+
+    def generate_tickets_from_idea(self, idea: str, max_attempts=3):
+        llm = get_llm()
+        prompt = IDEA_TO_TICKETS_PROMPT.strip() + f"\n\nIDEA:\n{idea.strip()}"
+        for attempt in range(max_attempts):
+            response = llm.invoke(prompt)
+            tickets = self.try_json_loads(response)
+            if tickets and isinstance(tickets, list):
+                # Validate ticket objects
+                valid = all(isinstance(t, dict) and {"titulo", "descripcion", "label"} <= set(t.keys()) for t in tickets)
+                if valid:
+                    return tickets
+            # else, try again
+        raise ValueError("No valid JSON array of tickets could be parsed from the LLM's response.")
 
     def run(self, ticket_data: dict) -> dict:
         ticket_id = ticket_data.get("id")
@@ -48,6 +88,64 @@ class OrchestratorAgent:
             "linear_team": team,
             "linear_assignee": assignee,
         }
+
+    def process_project(self, idea: str, team_key: str = None):
+        linear_api = LinearAPI()
+        # a) Generate tickets
+        tickets = self.generate_tickets_from_idea(idea)
+        # b) Fetch team and members
+        team = None
+        members = []
+        if team_key:
+            team = linear_api.get_team_id_by_key(team_key)
+            if team and "id" in team:
+                team_id = team["id"]
+                # get team members (simulate GraphQL as in main.py)
+                team_members = linear_api.get_team_members(team_id)
+                if team_members:
+                    members = team_members
+        assignees = []
+        if members:
+            n = len(members)
+            for i, _ in enumerate(tickets):
+                assignees.append(members[i % n])
+        else:
+            assignees = [None] * len(tickets)
+
+        # c) Get labels from Linear, map label name (case-insensitive) → id
+        labels = linear_api.get_labels()
+        label_map = {l['name'].lower(): l['id'] for l in labels} if labels else {}
+
+        results = []
+        for idx, ticket in enumerate(tickets):
+            # Assign round-robin
+            assignee = assignees[idx]
+            ticket_data = {
+                "titulo": ticket["titulo"],
+                "descripcion": ticket["descripcion"],
+                "team_key": team_key,
+                "assignee_email": assignee["email"] if assignee else None,
+            }
+            # Find label id
+            label_name = ticket.get("label", "").lower()
+            label_id = label_map.get(label_name)
+            if label_id:
+                ticket_data["labelIds"] = [label_id]
+            # d) Create Linear ticket
+            linear_ticket = self.run(ticket_data)["linear_ticket"]
+            # e) Call appropriate agent
+            if label_name == "frontend":
+                agent_output = FrontendAgent().run(ticket_data)
+            elif label_name == "backend":
+                agent_output = BackendAgent().run(ticket_data)
+            else:
+                agent_output = None
+            results.append({
+                "local_ticket": {**ticket, "label": label_name},
+                "linear_ticket": {k: linear_ticket.get(k) for k in ["id", "identifier", "url"]} if linear_ticket else None,
+                "agent_output": agent_output
+            })
+        return results
 
 if __name__ == "__main__":
     import sys
