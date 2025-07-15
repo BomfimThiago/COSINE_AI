@@ -4,6 +4,7 @@ from ..utils.prompts import BACKEND_AGENT_PROMPT
 from ..utils.langchain_helpers import get_llm
 from ..utils.ticket_loader import TicketLoader
 from ..utils import clarity_checker
+from ..utils.linear_api import LinearAPI
 
 from langchain_core.prompts import (
     ChatPromptTemplate,
@@ -67,7 +68,33 @@ class BackendAgent:
         # Step 1: clarity check
         clarity_result = self.load_and_check_ticket(ticket_data)
         if not clarity_result["is_clear"]:
-            return clarity_result
+            # 4.3a: Construir mensaje respetuoso usando listaErrores (missing)
+            lista_errores = clarity_result.get("missing", [])
+            ticket_id = clarity_result.get("ticket_id", "")
+            if lista_errores:
+                errores_str = "\n".join(f"- {e}" for e in lista_errores)
+                mensaje = (
+                    "¡Hola! 😊\n\n"
+                    "Gracias por enviar tu ticket. Para poder avanzar necesitamos un poco más de información:\n"
+                    f"{errores_str}\n\n"
+                    "¿Podrías por favor completar estos detalles? ¡Así podremos ayudarte más rápido!"
+                )
+            else:
+                mensaje = (
+                    "¡Hola! 😊\n\n"
+                    "Gracias por enviar tu ticket. ¿Podrías por favor brindar más detalles para entender mejor tu solicitud? "
+                    "¡Así podremos ayudarte más rápido!"
+                )
+            # 4.3b: LinearService.addComment(ticketId, mensajeSolicitandoInfo)
+            linear_api = LinearAPI()
+            linear_api.add_comment(ticket_id, mensaje)
+            # 4.3c: Devolver respuesta interna
+            return {
+                "ticket_id": ticket_id,
+                "accion": "comentario",
+                "mensaje": mensaje,
+                "github_pr_url": ""
+            }
         # Step 2: continue with current LLM generation
         descripcion = ticket_data.get("descripcion", "") or ticket_data.get("description", "")
         try:
