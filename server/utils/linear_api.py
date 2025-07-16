@@ -69,6 +69,7 @@ class LinearAPI:
               id
               identifier
               title
+              description
               assignee { id name email }
               url
               labels { nodes { id name } }

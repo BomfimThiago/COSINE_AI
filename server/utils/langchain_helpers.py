@@ -10,3 +10,9 @@ def get_llm():
         model_name="gpt-4o-mini",
         openai_api_key=os.environ.get("OPENAI_API_KEY")
     )
+
+def get_github_token():
+    """
+    Returns the GitHub API token from environment variables.
+    """
+    return os.environ.get("GITHUB_TOKEN")

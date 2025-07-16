@@ -139,17 +139,22 @@ class OrchestratorAgent:
             if label_id:
                 ticket_data["labelIds"] = [label_id]
             # d) Create Linear ticket
-            linear_ticket = self.run(ticket_data)["linear_ticket"]
-            # e) Call appropriate agent
-            if label_name == "frontend":
-                agent_output = FrontendAgent().run(ticket_data)
-            elif label_name == "backend":
-                agent_output = BackendAgent().run(ticket_data)
-            else:
-                agent_output = None
+            linear_ticket_response = self.run(ticket_data)
+            linear_ticket_obj = linear_ticket_response.get("linear_ticket", {}).get("issue")
+
+            # e) Call appropriate agent if ticket creation was successful
+            agent_output = None
+            if linear_ticket_obj:
+                label_name = ticket.get("label", "").lower()
+                print(f"[Orchestrator] Handing off ticket {linear_ticket_obj.get('identifier')} to {label_name} agent.")
+                if label_name == "frontend":
+                    agent_output = FrontendAgent().process_ticket(linear_ticket_obj)
+                elif label_name == "backend":
+                    agent_output = BackendAgent().process_ticket(linear_ticket_obj)
+            
             results.append({
                 "local_ticket": {**ticket, "label": label_name},
-                "linear_ticket": {k: linear_ticket.get(k) for k in ["id", "identifier", "url"]} if linear_ticket else None,
+                "linear_ticket": {k: linear_ticket_obj.get(k) for k in ["id", "identifier", "url"]} if linear_ticket_obj else None,
                 "agent_output": agent_output
             })
         return results

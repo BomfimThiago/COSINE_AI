@@ -6,3 +6,4 @@ gql
 python-dotenv
 fastapi
 uvicorn
+PyGithub

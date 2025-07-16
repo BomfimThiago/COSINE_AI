@@ -191,7 +191,7 @@ export default function App() {
         {
           sender: "agent",
           text:
-            "Lo siento, ocurrió un error: " +
+            "Sorry, an error occurred: " +
             (err?.message || String(err)),
         },
       ]);

@@ -1,147 +1,71 @@
 from __future__ import annotations
 
-from ..utils.prompts import BACKEND_AGENT_PROMPT
-from ..utils.langchain_helpers import get_llm
-from ..utils.ticket_loader import TicketLoader
-from ..utils import clarity_checker
-from ..utils.linear_api import LinearAPI
-from ..utils.code_generator_service import CodeGeneratorService
-from ..utils.github_service import GitHubService
-
-from langchain_core.prompts import (
-    ChatPromptTemplate,
-    SystemMessagePromptTemplate,
-    HumanMessagePromptTemplate,
-)
-from langchain.chains import LLMChain
 import json
-import re
-from typing import Any
+from .base_agent import BaseAgent
+from langchain.prompts import ChatPromptTemplate
+from langchain.chains import LLMChain
 
-class BackendAgent:
-    prompt = BACKEND_AGENT_PROMPT
+BACKEND_CODE_GEN_PROMPT = """
+You are a senior backend developer specializing in Python and FastAPI.
+Based on the following ticket, generate a single file's content to solve the task.
+The output must be a JSON object with two keys:
+1. "file_path": A string with the full proposed file path (e.g., "server/api/auth.py").
+2. "file_content": A string containing the complete, well-formatted code for the file.
 
+Ticket Description:
+---
+{description}
+---
+"""
+
+class BackendAgent(BaseAgent):
     def __init__(self):
-        system_template = SystemMessagePromptTemplate.from_template(self.prompt.strip())
-        human_template = HumanMessagePromptTemplate.from_template(
-            "Descripción del ticket:\n{input}\n\n"
-            "Devuelve SOLO un JSON ESTRICTAMENTE VÁLIDO con las claves exactas 'codigo' (snippet JS) y 'comentario' (explicación breve en español). Nunca devuelvas otro texto fuera del JSON. Nunca uses Markdown ni comentarios fuera del JSON."
-        )
-        self.chain = LLMChain(
-            llm=get_llm(),
-            prompt=ChatPromptTemplate.from_messages([system_template, human_template])
+        super().__init__(agent_type="BackendAgent")
+
+        # LLM Chain for generating backend code
+        self.code_gen_chain = LLMChain(
+            llm=self.llm,
+            prompt=ChatPromptTemplate.from_template(BACKEND_CODE_GEN_PROMPT)
         )
 
-    def _extract_json(self, text: str) -> str | None:
-        match = re.search(r'(\{.*?\})', text, re.DOTALL)
-        if match:
-            return match.group(1)
-        return None
+    def _generate_code_and_create_pr(self, ticket: dict):
+        print(f"[{self.agent_type}] Generating code for ticket: {ticket.get('identifier')}")
+        description = ticket.get("description", "")
 
-    def load_and_check_ticket(self, ticket_identifier_or_data: dict | str) -> dict:
-        """
-        Loads ticket (if id given), checks clarity, returns dict:
-        {
-          "ticket_id": ...,
-          "is_clear": bool,
-          "missing": [str, ...]
-        }
-        """
-        if isinstance(ticket_identifier_or_data, dict):
-            ticket_data = ticket_identifier_or_data.copy()
-            ticket_id = ticket_data.get("id") or ticket_data.get("identifier")
-            # If 'id' is present and not an ephemeral/temporary ticket, reload from Linear
-            if ticket_id:
-                fresh = TicketLoader.load(ticket_id)
-                if fresh:
-                    ticket_data = fresh
-        else:
-            ticket_id = str(ticket_identifier_or_data)
-            ticket_data = TicketLoader.load(ticket_id)
-        ticket_id = ticket_data.get("id") if ticket_data else None
-        is_clear, missing = clarity_checker.analyze(ticket_data or {})
-        return {
-            "ticket_id": ticket_id,
-            "is_clear": is_clear,
-            "missing": missing
-        }
-
-    def run(self, ticket_data: dict) -> dict:
-        # Step 1: clarity check
-        clarity_result = self.load_and_check_ticket(ticket_data)
-        if not clarity_result["is_clear"]:
-            # 4.3a: Construir mensaje respetuoso usando listaErrores (missing)
-            lista_errores = clarity_result.get("missing", [])
-            ticket_id = clarity_result.get("ticket_id", "")
-            if lista_errores:
-                errores_str = "\n".join(f"- {e}" for e in lista_errores)
-                mensaje = (
-                    "¡Hola! 😊\n\n"
-                    "Gracias por enviar tu ticket. Para poder avanzar necesitamos un poco más de información:\n"
-                    f"{errores_str}\n\n"
-                    "¿Podrías por favor completar estos detalles? ¡Así podremos ayudarte más rápido!"
-                )
-            else:
-                mensaje = (
-                    "¡Hola! 😊\n\n"
-                    "Gracias por enviar tu ticket. ¿Podrías por favor brindar más detalles para entender mejor tu solicitud? "
-                    "¡Así podremos ayudarte más rápido!"
-                )
-            # 4.3b: LinearService.addComment(ticketId, mensajeSolicitandoInfo)
-            linear_api = LinearAPI()
-            linear_api.add_comment(ticket_id, mensaje)
-            # 4.3c: Devolver respuesta interna
-            return {
-                "ticket_id": ticket_id,
-                "accion": "comentario",
-                "mensaje": mensaje,
-                "github_pr_url": ""
-            }
-        # Step 2: continue with current LLM generation
-        descripcion = ticket_data.get("descripcion", "") or ticket_data.get("description", "")
         try:
-            output = self.chain.run(input=descripcion)
-            try:
-                result = json.loads(output)
-            except Exception:
-                extracted = self._extract_json(output)
-                result = json.loads(extracted) if extracted else {}
-            if "codigo" in result and "comentario" in result:
-                return result
+            # Generate code and file path
+            generation_str = self.code_gen_chain.run(description=description)
+            # The model might return a string that is not perfect JSON, so we clean it
+            clean_json_str = generation_str[generation_str.find('{'):generation_str.rfind('}')+1]
+            generation = json.loads(clean_json_str)
+            
+            file_path = generation.get("file_path")
+            file_content = generation.get("file_content")
+
+            if not file_path or not file_content:
+                raise ValueError("LLM failed to provide a valid file_path or file_content.")
+
+            print(f"[{self.agent_type}] Generated code for file: {file_path}")
+
+            # Create the Pull Request
+            pr_result = self.github_api.create_pr(
+                ticket_id=ticket.get("identifier"),
+                ticket_title=ticket.get("title"),
+                file_path=file_path,
+                file_content=file_content
+            )
+
+            # If PR creation is successful, post a comment on the Linear ticket
+            if pr_result.get("success"):
+                comment_body = f"I've opened a pull request to address this ticket: {pr_result.get('pr_url')}"
+                self.linear_api.add_comment(ticket['id'], comment_body)
+                return {"status": "pr_created", "ticket": ticket.get('identifier'), "pr_url": pr_result.get('pr_url')}
             else:
-                return {"codigo": "", "comentario": "", "raw_output": output}
-        except Exception:
-            return {"codigo": "", "comentario": "", "raw_output": output if 'output' in locals() else "ERROR"}
+                raise Exception(f"Failed to create PR: {pr_result.get('error')}")
 
-    def process_ticket_claro(self, ticket_id: str, ticket_slug: str, ticket_data: dict) -> dict:
-        """
-        Ejecuta el flujo 4.4 Ruta B: ticket CLARO
-        """
-        # a. Generar nombre de la rama: feature/<ticketId>-slug
-        branch_name = f"feature/{ticket_id}-{ticket_slug}"
-
-        # b. Invocar CodeGeneratorService (placeholder)
-        codegen_result = CodeGeneratorService.generate_code(ticket_id, ticket_slug, ticket_data)
-        files = codegen_result.get("files", [])
-        comment = codegen_result.get("comment", "")
-
-        # c. GitHubService.createBranch, commit & push cambios.
-        GitHubService.create_branch(branch_name)
-        GitHubService.commit_and_push(branch_name, files)
-
-        # d. GitHubService.createPullRequest → prUrl.
-        pr_title = f"Feature {ticket_id}: {ticket_slug}"
-        pr_body = comment
-        pr_url = GitHubService.create_pull_request(branch_name, pr_title, pr_body)
-
-        # e. LinearService.updateTicketStatus(ticketId, "En revisión")
-        linear_api = LinearAPI()
-        linear_api.update_ticket_status(ticket_id, "En revisión")
-
-        # f. Devolver respuesta interna
-        return {
-            "ticket_id": ticket_id,
-            "accion": "pull_request",
-            "mensaje": "PR creado",
-            "github_pr_url": pr_url
-        }
+        except Exception as e:
+            error_message = f"An error occurred during code generation or PR creation for {ticket.get('identifier')}: {e}"
+            print(f"[{self.agent_type}] {error_message}")
+            # Post a comment on Linear that something went wrong
+            self.linear_api.add_comment(ticket['id'], f"I tried to work on this ticket but encountered an error and could not create a pull request. Please review the details.\n\nError: {e}")
+            return {"status": "error", "ticket": ticket.get('identifier'), "error": str(e)}
